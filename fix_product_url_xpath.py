@@ -14,8 +14,8 @@ def fix_xpath():
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
 
-        # Update product_url xpath - h2 태그 내부의 a 태그를 찾는 것이 맞습니다
-        new_xpath = './/h2//a/@href'
+        # Update product_url xpath - a 태그가 h2 태그를 감싸고 있음
+        new_xpath = './/a[.//h2]/@href'
 
         print("="*80)
         print("Fixing product_url XPath")
