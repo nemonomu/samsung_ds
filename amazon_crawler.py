@@ -125,15 +125,18 @@ class AmazonTVCrawler:
         xpaths_to_try = [
             self.xpaths['product_name']['xpath'],  # Primary: .//h2//span
             './/h2/a/span',                         # Alternative 1: h2 > a > span
-            './/h2//text()',                        # Alternative 2: any text in h2
-            './/a[.//h2]//span',                    # Alternative 3: span in a that has h2
+            './/a[.//h2]//span',                    # Alternative 2: span in a that has h2
+            './/h2',                                # Alternative 3: h2 text content
             './/span[@class="a-size-medium"]',      # Alternative 4: by class
             './/span[@class="a-size-base-plus"]',   # Alternative 5: by class
         ]
 
-        for xpath in xpaths_to_try:
+        for idx, xpath in enumerate(xpaths_to_try):
             result = self.extract_text_safe(element, xpath)
             if result and len(result.strip()) > 0:
+                # Debug: log which XPath worked for non-primary paths
+                if idx > 0 and result:
+                    pass  # Silently use fallback
                 return result
 
         return None
@@ -260,7 +263,9 @@ class AmazonTVCrawler:
                     self.total_collected += 1
                     print(f"  [{idx}/16] Collected: {data['Retailer_SKU_Name'][:50] if data['Retailer_SKU_Name'] else '[NO NAME]'}... | URL: {product_url[:60] if product_url else 'NULL'}...")
                 else:
-                    print(f"  [{idx}/16] FAILED to save (likely duplicate or missing SKU name)")
+                    # Get ASIN for debugging
+                    asin = product.get('data-asin', 'NO-ASIN')
+                    print(f"  [{idx}/16] FAILED to save: {data['Retailer_SKU_Name'][:40]}... (ASIN: {asin}) - likely duplicate")
 
             print(f"[PAGE {page_number}] Collected {collected_count} products (Total: {self.total_collected}/{self.max_skus})")
             return True
