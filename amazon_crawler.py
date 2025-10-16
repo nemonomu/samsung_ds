@@ -189,6 +189,11 @@ class AmazonTVCrawler:
                 if idx == 1:
                     print(f"[DEBUG] Final URL: {product_url}\n")
 
+                # Extract discount type and validate
+                discount_type_raw = self.extract_text_safe(product, self.xpaths['deal_badge']['xpath'])
+                # Only keep "Limited time deal", set others to None
+                discount_type = discount_type_raw if discount_type_raw == "Limited time deal" else None
+
                 data = {
                     'mall_name': 'Amazon',
                     'page_number': page_number,
@@ -198,7 +203,7 @@ class AmazonTVCrawler:
                     'Original_SKU_Price': self.extract_text_safe(product, self.xpaths['original_price']['xpath']),
                     'Shipping_Info': self.extract_text_safe(product, self.xpaths['shipping_info']['xpath']),
                     'Available_Quantity_for_Purchase': self.extract_text_safe(product, self.xpaths['stock_availability']['xpath']),
-                    'Discount_Type': self.extract_text_safe(product, self.xpaths['deal_badge']['xpath']),
+                    'Discount_Type': discount_type,
                     'Product_URL': product_url
                 }
 
