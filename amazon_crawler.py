@@ -221,11 +221,13 @@ class AmazonTVCrawler:
             return True  # Continue to next page
 
     def save_to_db(self, data):
-        """Save collected data to database"""
+        """Save collected data to both raw_data and Amazon_tv_main_crawled tables"""
         try:
             cursor = self.db_conn.cursor()
+
+            # Save to raw_data table (모든 데이터 포함)
             cursor.execute("""
-                INSERT INTO collected_data
+                INSERT INTO raw_data
                 (mall_name, page_number, Retailer_SKU_Name, Number_of_units_purchased_past_month,
                  Final_SKU_Price, Original_SKU_Price, Shipping_Info,
                  Available_Quantity_for_Purchase, Discount_Type, Product_URL)
@@ -242,6 +244,25 @@ class AmazonTVCrawler:
                 data['Available_Quantity_for_Purchase'],
                 data['Discount_Type'],
                 data['Product_URL']
+            ))
+
+            # Save to Amazon_tv_main_crawled table (Product_URL과 page_number 제외)
+            cursor.execute("""
+                INSERT INTO Amazon_tv_main_crawled
+                (mall_name, Retailer_SKU_Name, Number_of_units_purchased_past_month,
+                 Final_SKU_Price, Original_SKU_Price, Shipping_Info,
+                 Available_Quantity_for_Purchase, Discount_Type)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (mall_name, Retailer_SKU_Name) DO NOTHING
+            """, (
+                data['mall_name'],
+                data['Retailer_SKU_Name'],
+                data['Number_of_units_purchased_past_month'],
+                data['Final_SKU_Price'],
+                data['Original_SKU_Price'],
+                data['Shipping_Info'],
+                data['Available_Quantity_for_Purchase'],
+                data['Discount_Type']
             ))
 
             self.db_conn.commit()
