@@ -233,6 +233,7 @@ class AmazonTVCrawler:
                  Available_Quantity_for_Purchase, Discount_Type, Product_URL)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (mall_name, Retailer_SKU_Name) DO NOTHING
+                RETURNING id
             """, (
                 data['mall_name'],
                 data['page_number'],
@@ -246,28 +247,33 @@ class AmazonTVCrawler:
                 data['Product_URL']
             ))
 
-            # Save to Amazon_tv_main_crawled table (Product_URL과 page_number 제외)
-            cursor.execute("""
-                INSERT INTO Amazon_tv_main_crawled
-                (mall_name, Retailer_SKU_Name, Number_of_units_purchased_past_month,
-                 Final_SKU_Price, Original_SKU_Price, Shipping_Info,
-                 Available_Quantity_for_Purchase, Discount_Type)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (mall_name, Retailer_SKU_Name) DO NOTHING
-            """, (
-                data['mall_name'],
-                data['Retailer_SKU_Name'],
-                data['Number_of_units_purchased_past_month'],
-                data['Final_SKU_Price'],
-                data['Original_SKU_Price'],
-                data['Shipping_Info'],
-                data['Available_Quantity_for_Purchase'],
-                data['Discount_Type']
-            ))
+            # Check if raw_data insert was successful (new row inserted)
+            raw_data_result = cursor.fetchone()
+
+            # Only insert to Amazon_tv_main_crawled if raw_data insert was successful
+            if raw_data_result:
+                cursor.execute("""
+                    INSERT INTO Amazon_tv_main_crawled
+                    (mall_name, Retailer_SKU_Name, Number_of_units_purchased_past_month,
+                     Final_SKU_Price, Original_SKU_Price, Shipping_Info,
+                     Available_Quantity_for_Purchase, Discount_Type)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    data['mall_name'],
+                    data['Retailer_SKU_Name'],
+                    data['Number_of_units_purchased_past_month'],
+                    data['Final_SKU_Price'],
+                    data['Original_SKU_Price'],
+                    data['Shipping_Info'],
+                    data['Available_Quantity_for_Purchase'],
+                    data['Discount_Type']
+                ))
 
             self.db_conn.commit()
             cursor.close()
-            return True
+
+            # Return True only if new data was inserted
+            return raw_data_result is not None
 
         except Exception as e:
             print(f"[ERROR] Failed to save to DB: {e}")
