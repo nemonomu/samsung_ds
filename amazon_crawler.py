@@ -214,10 +214,18 @@ class AmazonTVCrawler:
                 # Only keep "Limited time deal", set others to None
                 discount_type = discount_type_raw if discount_type_raw == "Limited time deal" else None
 
+                # Extract product name
+                product_name = self.extract_text_safe(product, self.xpaths['product_name']['xpath'])
+
+                # Skip if no product name (critical field)
+                if not product_name:
+                    print(f"  [{idx}/16] SKIP: No product name found")
+                    continue
+
                 data = {
                     'mall_name': 'Amazon',
                     'page_number': page_number,
-                    'Retailer_SKU_Name': self.extract_text_safe(product, self.xpaths['product_name']['xpath']),
+                    'Retailer_SKU_Name': product_name,
                     'Number_of_units_purchased_past_month': self.extract_text_safe(product, self.xpaths['purchase_history']['xpath']),
                     'Final_SKU_Price': self.extract_text_safe(product, self.xpaths['final_price']['xpath']),
                     'Original_SKU_Price': self.extract_text_safe(product, self.xpaths['original_price']['xpath']),
@@ -231,7 +239,9 @@ class AmazonTVCrawler:
                 if self.save_to_db(data):
                     collected_count += 1
                     self.total_collected += 1
-                    print(f"  [{idx}/16] Collected: {data['Retailer_SKU_Name'][:50]}... | URL: {product_url[:60] if product_url else 'NULL'}...")
+                    print(f"  [{idx}/16] Collected: {data['Retailer_SKU_Name'][:50] if data['Retailer_SKU_Name'] else '[NO NAME]'}... | URL: {product_url[:60] if product_url else 'NULL'}...")
+                else:
+                    print(f"  [{idx}/16] FAILED to save (likely duplicate or missing SKU name)")
 
             print(f"[PAGE {page_number}] Collected {collected_count} products (Total: {self.total_collected}/{self.max_skus})")
             return True
