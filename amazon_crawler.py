@@ -109,9 +109,14 @@ class AmazonTVCrawler:
         try:
             result = element.xpath(xpath)
             if result:
-                return result[0].strip() if isinstance(result[0], str) else result[0].text_content().strip()
+                # Handle attribute extraction (e.g., @href)
+                if isinstance(result[0], str):
+                    return result[0].strip()
+                # Handle element extraction
+                else:
+                    return result[0].text_content().strip()
             return None
-        except:
+        except Exception as e:
             return None
 
     def scrape_page(self, url, page_number):
@@ -131,7 +136,7 @@ class AmazonTVCrawler:
 
             print(f"[INFO] Found {len(products)} total containers")
 
-            # Filter out excluded containers
+            # Filter out excluded containers and sort by page order
             valid_products = []
             for product in products:
                 # Check if it's a valid product (not ad/widget)
@@ -148,7 +153,18 @@ class AmazonTVCrawler:
                 ]):
                     continue
 
-                valid_products.append(product)
+                # Get data-index for sorting
+                data_index = product.get('data-index', '999')
+                try:
+                    data_index = int(data_index)
+                except:
+                    data_index = 999
+
+                valid_products.append((data_index, product))
+
+            # Sort by data-index (page order)
+            valid_products.sort(key=lambda x: x[0])
+            valid_products = [product for _, product in valid_products]
 
             print(f"[INFO] Valid products after filtering: {len(valid_products)}")
 
@@ -160,24 +176,28 @@ class AmazonTVCrawler:
                     return False
 
                 # Extract data
+                product_url_path = self.extract_text_safe(product, self.xpaths['product_url']['xpath'])
+                # Build complete URL
+                product_url = f"https://www.amazon.com{product_url_path}" if product_url_path else None
+
                 data = {
                     'mall_name': 'Amazon',
                     'page_number': page_number,
-                    'product_name': self.extract_text_safe(product, self.xpaths['product_name']['xpath']),
-                    'purchase_history': self.extract_text_safe(product, self.xpaths['purchase_history']['xpath']),
-                    'final_price': self.extract_text_safe(product, self.xpaths['final_price']['xpath']),
-                    'original_price': self.extract_text_safe(product, self.xpaths['original_price']['xpath']),
-                    'shipping_info': self.extract_text_safe(product, self.xpaths['shipping_info']['xpath']),
-                    'stock_availability': self.extract_text_safe(product, self.xpaths['stock_availability']['xpath']),
-                    'deal_badge': self.extract_text_safe(product, self.xpaths['deal_badge']['xpath']),
-                    'product_url': self.extract_text_safe(product, self.xpaths['product_url']['xpath'])
+                    'Retailer_SKU_Name': self.extract_text_safe(product, self.xpaths['product_name']['xpath']),
+                    'Number_of_units_purchased_past_month': self.extract_text_safe(product, self.xpaths['purchase_history']['xpath']),
+                    'Final_SKU_Price': self.extract_text_safe(product, self.xpaths['final_price']['xpath']),
+                    'Original_SKU_Price': self.extract_text_safe(product, self.xpaths['original_price']['xpath']),
+                    'Shipping_Info': self.extract_text_safe(product, self.xpaths['shipping_info']['xpath']),
+                    'Available_Quantity_for_Purchase': self.extract_text_safe(product, self.xpaths['stock_availability']['xpath']),
+                    'Discount_Type': self.extract_text_safe(product, self.xpaths['deal_badge']['xpath']),
+                    'Product_URL': product_url
                 }
 
                 # Save to database
                 if self.save_to_db(data):
                     collected_count += 1
                     self.total_collected += 1
-                    print(f"  [{idx}/16] Collected: {data['product_name'][:50]}...")
+                    print(f"  [{idx}/16] Collected: {data['Retailer_SKU_Name'][:50]}...")
 
             print(f"[PAGE {page_number}] Collected {collected_count} products (Total: {self.total_collected}/{self.max_skus})")
             return True
@@ -192,20 +212,22 @@ class AmazonTVCrawler:
             cursor = self.db_conn.cursor()
             cursor.execute("""
                 INSERT INTO collected_data
-                (mall_name, page_number, retailer_sku_name, product_url,
-                 final_sku_price, savings, comparable_pricing, offer, star_rating)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (mall_name, sku) DO NOTHING
+                (mall_name, page_number, Retailer_SKU_Name, Number_of_units_purchased_past_month,
+                 Final_SKU_Price, Original_SKU_Price, Shipping_Info,
+                 Available_Quantity_for_Purchase, Discount_Type, Product_URL)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (mall_name, Retailer_SKU_Name) DO NOTHING
             """, (
                 data['mall_name'],
                 data['page_number'],
-                data['product_name'],
-                data['product_url'],
-                data['final_price'],
-                data['original_price'],
-                None,  # comparable_pricing
-                data['deal_badge'],
-                None   # star_rating
+                data['Retailer_SKU_Name'],
+                data['Number_of_units_purchased_past_month'],
+                data['Final_SKU_Price'],
+                data['Original_SKU_Price'],
+                data['Shipping_Info'],
+                data['Available_Quantity_for_Purchase'],
+                data['Discount_Type'],
+                data['Product_URL']
             ))
 
             self.db_conn.commit()
