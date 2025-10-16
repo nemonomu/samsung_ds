@@ -119,6 +119,25 @@ class AmazonTVCrawler:
         except Exception as e:
             return None
 
+    def extract_product_name(self, element):
+        """Extract product name with multiple fallback XPaths"""
+        # Try multiple XPath strategies in order of preference
+        xpaths_to_try = [
+            self.xpaths['product_name']['xpath'],  # Primary: .//h2//span
+            './/h2/a/span',                         # Alternative 1: h2 > a > span
+            './/h2//text()',                        # Alternative 2: any text in h2
+            './/a[.//h2]//span',                    # Alternative 3: span in a that has h2
+            './/span[@class="a-size-medium"]',      # Alternative 4: by class
+            './/span[@class="a-size-base-plus"]',   # Alternative 5: by class
+        ]
+
+        for xpath in xpaths_to_try:
+            result = self.extract_text_safe(element, xpath)
+            if result and len(result.strip()) > 0:
+                return result
+
+        return None
+
     def scrape_page(self, url, page_number):
         """Scrape a single page"""
         try:
@@ -214,12 +233,12 @@ class AmazonTVCrawler:
                 # Only keep "Limited time deal", set others to None
                 discount_type = discount_type_raw if discount_type_raw == "Limited time deal" else None
 
-                # Extract product name
-                product_name = self.extract_text_safe(product, self.xpaths['product_name']['xpath'])
+                # Extract product name with fallback XPaths
+                product_name = self.extract_product_name(product)
 
                 # Skip if no product name (critical field)
                 if not product_name:
-                    print(f"  [{idx}/16] SKIP: No product name found")
+                    print(f"  [{idx}/16] SKIP: No product name found (tried all XPath alternatives)")
                     continue
 
                 data = {
