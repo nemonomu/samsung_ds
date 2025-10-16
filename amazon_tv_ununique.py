@@ -485,5 +485,6 @@ if __name__ == "__main__":
         print(f"\n[FATAL ERROR] {e}")
         import traceback
         traceback.print_exc()
-    finally:
-        input("\nPress Enter to exit...")
+
+    print("\n[INFO] Crawler terminated. Exiting...")
+    # Auto-exit, no input() needed

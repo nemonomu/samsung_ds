@@ -81,4 +81,4 @@ def create_ununique_tables():
 
 if __name__ == "__main__":
     create_ununique_tables()
-    input("\nPress Enter to exit...")
+    print("\n[INFO] Script completed. Exiting...")

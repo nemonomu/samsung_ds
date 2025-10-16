@@ -66,4 +66,4 @@ def add_asin_column():
 
 if __name__ == "__main__":
     add_asin_column()
-    input("\nPress Enter to exit...")
+    print("\n[INFO] Script completed. Exiting...")
