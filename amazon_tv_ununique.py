@@ -1,6 +1,10 @@
 import time
 import random
 import psycopg2
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -19,6 +23,15 @@ DB_CONFIG = {
     'password': 'admin2025!'
 }
 
+# Email configuration (Gmail SMTP)
+EMAIL_CONFIG = {
+    'smtp_server': 'smtp.gmail.com',
+    'smtp_port': 587,
+    'sender_email': 'your-email@gmail.com',  # 여기에 발신 이메일 입력
+    'sender_password': 'your-app-password',  # 여기에 Gmail 앱 비밀번호 입력
+    'recipient_email': 'recipient@example.com'  # 여기에 수신 이메일 입력
+}
+
 class AmazonTVCrawlerUnunique:
     def __init__(self):
         self.driver = None
@@ -27,6 +40,8 @@ class AmazonTVCrawlerUnunique:
         self.xpaths = {}
         self.total_collected = 0
         self.max_skus = 300
+        self.crawl_success = True
+        self.error_messages = []
 
     def connect_db(self):
         """Connect to PostgreSQL database"""
@@ -244,6 +259,9 @@ class AmazonTVCrawlerUnunique:
                     print(f"  [{idx}/16] SKIP: No product name found (tried all XPath alternatives)")
                     continue
 
+                # Get ASIN
+                asin = product.get('data-asin', 'NO-ASIN')
+
                 data = {
                     'mall_name': 'Amazon',
                     'page_number': page_number,
@@ -254,11 +272,9 @@ class AmazonTVCrawlerUnunique:
                     'Shipping_Info': self.extract_text_safe(product, self.xpaths['shipping_info']['xpath']),
                     'Available_Quantity_for_Purchase': self.extract_text_safe(product, self.xpaths['stock_availability']['xpath']),
                     'Discount_Type': discount_type,
-                    'Product_URL': product_url
+                    'Product_URL': product_url,
+                    'ASIN': asin
                 }
-
-                # Get ASIN for logging
-                asin = product.get('data-asin', 'NO-ASIN')
 
                 # Save to database (always succeeds, no duplicate checking)
                 if self.save_to_db(data):
@@ -285,8 +301,8 @@ class AmazonTVCrawlerUnunique:
                 INSERT INTO raw_data_ununique
                 (mall_name, page_number, Retailer_SKU_Name, Number_of_units_purchased_past_month,
                  Final_SKU_Price, Original_SKU_Price, Shipping_Info,
-                 Available_Quantity_for_Purchase, Discount_Type, Product_URL)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 Available_Quantity_for_Purchase, Discount_Type, Product_URL, ASIN)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             """, (
                 data['mall_name'],
@@ -298,7 +314,8 @@ class AmazonTVCrawlerUnunique:
                 data['Shipping_Info'],
                 data['Available_Quantity_for_Purchase'],
                 data['Discount_Type'],
-                data['Product_URL']
+                data['Product_URL'],
+                data['ASIN']
             ))
 
             # Get the inserted ID
@@ -310,8 +327,8 @@ class AmazonTVCrawlerUnunique:
                     INSERT INTO Amazon_tv_main_crawled_ununique
                     (mall_name, Retailer_SKU_Name, Number_of_units_purchased_past_month,
                      Final_SKU_Price, Original_SKU_Price, Shipping_Info,
-                     Available_Quantity_for_Purchase, Discount_Type)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                     Available_Quantity_for_Purchase, Discount_Type, ASIN)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     data['mall_name'],
                     data['Retailer_SKU_Name'],
@@ -320,7 +337,8 @@ class AmazonTVCrawlerUnunique:
                     data['Original_SKU_Price'],
                     data['Shipping_Info'],
                     data['Available_Quantity_for_Purchase'],
-                    data['Discount_Type']
+                    data['Discount_Type'],
+                    data['ASIN']
                 ))
 
             self.db_conn.commit()
@@ -331,6 +349,47 @@ class AmazonTVCrawlerUnunique:
 
         except Exception as e:
             print(f"[ERROR] Failed to save to DB: {e}")
+            self.error_messages.append(f"DB save error: {e}")
+            return False
+
+    def send_email_notification(self, subject, message):
+        """Send email notification about crawling issues"""
+        try:
+            # Check if email config is properly set
+            if EMAIL_CONFIG['sender_email'] == 'your-email@gmail.com':
+                print("[WARNING] Email not configured. Skipping email notification.")
+                print(f"Subject: {subject}")
+                print(f"Message: {message}")
+                return False
+
+            msg = MIMEMultipart()
+            msg['From'] = EMAIL_CONFIG['sender_email']
+            msg['To'] = EMAIL_CONFIG['recipient_email']
+            msg['Subject'] = subject
+
+            body = f"""
+Amazon TV Crawler Notification
+Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+{message}
+
+---
+This is an automated message from Amazon TV Crawler.
+"""
+            msg.attach(MIMEText(body, 'plain'))
+
+            server = smtplib.SMTP(EMAIL_CONFIG['smtp_server'], EMAIL_CONFIG['smtp_port'])
+            server.starttls()
+            server.login(EMAIL_CONFIG['sender_email'], EMAIL_CONFIG['sender_password'])
+            text = msg.as_string()
+            server.sendmail(EMAIL_CONFIG['sender_email'], EMAIL_CONFIG['recipient_email'], text)
+            server.quit()
+
+            print(f"[OK] Email notification sent: {subject}")
+            return True
+
+        except Exception as e:
+            print(f"[ERROR] Failed to send email: {e}")
             return False
 
     def run(self):
@@ -371,8 +430,45 @@ class AmazonTVCrawlerUnunique:
             print(f"Crawling completed! Total collected: {self.total_collected} SKUs")
             print("="*80)
 
+            # Check if crawling was successful and send email if needed
+            if self.total_collected < self.max_skus:
+                subject = f"⚠️ Amazon Crawler Warning: Only {self.total_collected}/{self.max_skus} SKUs collected"
+                message = f"""
+Crawling completed but did not reach the target of {self.max_skus} SKUs.
+
+Results:
+- Target: {self.max_skus} SKUs
+- Collected: {self.total_collected} SKUs
+- Missing: {self.max_skus - self.total_collected} SKUs
+
+This may be due to:
+1. Insufficient unique products on Amazon
+2. Products were filtered out (ads, widgets, etc.)
+3. Crawling errors occurred
+
+Please check the crawler logs for more details.
+"""
+                if self.error_messages:
+                    message += f"\n\nErrors encountered:\n" + "\n".join(self.error_messages)
+
+                self.send_email_notification(subject, message)
+
         except Exception as e:
             print(f"[ERROR] Crawler failed: {e}")
+
+            # Send email about critical failure
+            subject = "🚨 Amazon Crawler FAILED"
+            message = f"""
+CRITICAL ERROR: Amazon TV Crawler encountered a fatal error and stopped.
+
+Error: {str(e)}
+
+Please check the crawler immediately.
+"""
+            if self.error_messages:
+                message += f"\n\nPrevious errors:\n" + "\n".join(self.error_messages)
+
+            self.send_email_notification(subject, message)
 
         finally:
             if self.driver:
