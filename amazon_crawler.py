@@ -183,6 +183,11 @@ class AmazonTVCrawler:
 
             print(f"[INFO] Valid products after filtering: {len(valid_products)}")
 
+            # Debug: Show warning if less than 16 products on early pages
+            if page_number <= 10 and len(valid_products) < 16:
+                print(f"[WARNING] Only {len(valid_products)} valid products found on page {page_number}")
+                print(f"[DEBUG] Total containers: {len(products)}, Excluded: {excluded_count}, Valid: {len(valid_products)}")
+
             # Process up to 16 products per page
             collected_count = 0
             for idx, product in enumerate(valid_products[:16], 1):
