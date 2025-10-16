@@ -177,8 +177,17 @@ class AmazonTVCrawler:
 
                 # Extract data
                 product_url_path = self.extract_text_safe(product, self.xpaths['product_url']['xpath'])
+
+                # DEBUG: Print URL extraction result for first product
+                if idx == 1:
+                    print(f"\n[DEBUG] URL XPath: {self.xpaths['product_url']['xpath']}")
+                    print(f"[DEBUG] Extracted path: {product_url_path}")
+
                 # Build complete URL
                 product_url = f"https://www.amazon.com{product_url_path}" if product_url_path else None
+
+                if idx == 1:
+                    print(f"[DEBUG] Final URL: {product_url}\n")
 
                 data = {
                     'mall_name': 'Amazon',
@@ -197,7 +206,7 @@ class AmazonTVCrawler:
                 if self.save_to_db(data):
                     collected_count += 1
                     self.total_collected += 1
-                    print(f"  [{idx}/16] Collected: {data['Retailer_SKU_Name'][:50]}...")
+                    print(f"  [{idx}/16] Collected: {data['Retailer_SKU_Name'][:50]}... | URL: {product_url[:60] if product_url else 'NULL'}...")
 
             print(f"[PAGE {page_number}] Collected {collected_count} products (Total: {self.total_collected}/{self.max_skus})")
             return True
