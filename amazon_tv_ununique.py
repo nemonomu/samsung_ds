@@ -1,10 +1,6 @@
 import time
 import random
 import psycopg2
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -21,15 +17,6 @@ DB_CONFIG = {
     'database': 'postgres',
     'user': 'postgres',
     'password': 'admin2025!'
-}
-
-# Email configuration (Gmail SMTP)
-EMAIL_CONFIG = {
-    'smtp_server': 'smtp.gmail.com',
-    'smtp_port': 587,
-    'sender_email': 'your-email@gmail.com',  # 여기에 발신 이메일 입력
-    'sender_password': 'your-app-password',  # 여기에 Gmail 앱 비밀번호 입력
-    'recipient_email': 'recipient@example.com'  # 여기에 수신 이메일 입력
 }
 
 class AmazonTVCrawlerUnunique:
@@ -352,46 +339,6 @@ class AmazonTVCrawlerUnunique:
             self.error_messages.append(f"DB save error: {e}")
             return False
 
-    def send_email_notification(self, subject, message):
-        """Send email notification about crawling issues"""
-        try:
-            # Check if email config is properly set
-            if EMAIL_CONFIG['sender_email'] == 'your-email@gmail.com':
-                print("[WARNING] Email not configured. Skipping email notification.")
-                print(f"Subject: {subject}")
-                print(f"Message: {message}")
-                return False
-
-            msg = MIMEMultipart()
-            msg['From'] = EMAIL_CONFIG['sender_email']
-            msg['To'] = EMAIL_CONFIG['recipient_email']
-            msg['Subject'] = subject
-
-            body = f"""
-Amazon TV Crawler Notification
-Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-{message}
-
----
-This is an automated message from Amazon TV Crawler.
-"""
-            msg.attach(MIMEText(body, 'plain'))
-
-            server = smtplib.SMTP(EMAIL_CONFIG['smtp_server'], EMAIL_CONFIG['smtp_port'])
-            server.starttls()
-            server.login(EMAIL_CONFIG['sender_email'], EMAIL_CONFIG['sender_password'])
-            text = msg.as_string()
-            server.sendmail(EMAIL_CONFIG['sender_email'], EMAIL_CONFIG['recipient_email'], text)
-            server.quit()
-
-            print(f"[OK] Email notification sent: {subject}")
-            return True
-
-        except Exception as e:
-            print(f"[ERROR] Failed to send email: {e}")
-            return False
-
     def run(self):
         """Main execution"""
         try:
@@ -430,45 +377,21 @@ This is an automated message from Amazon TV Crawler.
             print(f"Crawling completed! Total collected: {self.total_collected} SKUs")
             print("="*80)
 
-            # Check if crawling was successful and send email if needed
+            # Check if crawling was successful
             if self.total_collected < self.max_skus:
-                subject = f"⚠️ Amazon Crawler Warning: Only {self.total_collected}/{self.max_skus} SKUs collected"
-                message = f"""
-Crawling completed but did not reach the target of {self.max_skus} SKUs.
-
-Results:
-- Target: {self.max_skus} SKUs
-- Collected: {self.total_collected} SKUs
-- Missing: {self.max_skus - self.total_collected} SKUs
-
-This may be due to:
-1. Insufficient unique products on Amazon
-2. Products were filtered out (ads, widgets, etc.)
-3. Crawling errors occurred
-
-Please check the crawler logs for more details.
-"""
+                print(f"\n[WARNING] Only collected {self.total_collected}/{self.max_skus} SKUs")
+                print(f"Missing: {self.max_skus - self.total_collected} SKUs")
                 if self.error_messages:
-                    message += f"\n\nErrors encountered:\n" + "\n".join(self.error_messages)
-
-                self.send_email_notification(subject, message)
+                    print("\nErrors encountered:")
+                    for error in self.error_messages:
+                        print(f"  - {error}")
 
         except Exception as e:
             print(f"[ERROR] Crawler failed: {e}")
-
-            # Send email about critical failure
-            subject = "🚨 Amazon Crawler FAILED"
-            message = f"""
-CRITICAL ERROR: Amazon TV Crawler encountered a fatal error and stopped.
-
-Error: {str(e)}
-
-Please check the crawler immediately.
-"""
             if self.error_messages:
-                message += f"\n\nPrevious errors:\n" + "\n".join(self.error_messages)
-
-            self.send_email_notification(subject, message)
+                print("\nPrevious errors:")
+                for error in self.error_messages:
+                    print(f"  - {error}")
 
         finally:
             if self.driver:
