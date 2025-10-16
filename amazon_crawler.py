@@ -265,5 +265,12 @@ class AmazonTVCrawler:
 
 
 if __name__ == "__main__":
-    crawler = AmazonTVCrawler()
-    crawler.run()
+    try:
+        crawler = AmazonTVCrawler()
+        crawler.run()
+    except Exception as e:
+        print(f"\n[FATAL ERROR] {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        input("\nPress Enter to exit...")
