@@ -138,19 +138,31 @@ class AmazonTVCrawler:
 
             # Filter out excluded containers and sort by page order
             valid_products = []
+            excluded_count = 0
             for product in products:
                 # Check if it's a valid product (not ad/widget)
                 cel_widget = product.get('cel_widget_id', '')
                 component_type = product.get('data-component-type', '')
+                data_component_id = product.get('data-component-id', '')
 
-                # Exclude conditions
-                if any([
-                    'loom-desktop' in cel_widget,
-                    'messaging' in component_type.lower(),
-                    'video' in component_type.lower(),
-                    'sb-themed' in cel_widget,
-                    'multi-brand' in cel_widget
-                ]):
+                # More specific exclude conditions - only exclude exact matches
+                is_excluded = False
+
+                # Exclude sponsored/ad widgets
+                if 'loom-desktop' in cel_widget:
+                    is_excluded = True
+                elif 'sb-themed' in cel_widget:
+                    is_excluded = True
+                elif 'multi-brand' in cel_widget:
+                    is_excluded = True
+                # Only exclude messaging/video widgets, not video products
+                elif component_type == 's-messaging-widget':
+                    is_excluded = True
+                elif 'VideoLandscapeCarouselWidget' in data_component_id:
+                    is_excluded = True
+
+                if is_excluded:
+                    excluded_count += 1
                     continue
 
                 # Get data-index for sorting
@@ -161,6 +173,9 @@ class AmazonTVCrawler:
                     data_index = 999
 
                 valid_products.append((data_index, product))
+
+            if excluded_count > 0:
+                print(f"[INFO] Excluded {excluded_count} containers (ads/widgets)")
 
             # Sort by data-index (page order)
             valid_products.sort(key=lambda x: x[0])
