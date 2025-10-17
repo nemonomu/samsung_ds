@@ -29,6 +29,7 @@ class AmazonTVCrawlerUnunique:
         self.max_skus = 300
         self.crawl_success = True
         self.error_messages = []
+        self.sequential_id = 1  # ID counter for 1-300
 
     def connect_db(self):
         """Connect to PostgreSQL database"""
@@ -279,18 +280,20 @@ class AmazonTVCrawlerUnunique:
             return True  # Continue to next page
 
     def save_to_db(self, data):
-        """Save collected data to both ununique tables (NO duplicate checking)"""
+        """Save collected data with sequential ID (1-300), reusing IDs on each run"""
         try:
             cursor = self.db_conn.cursor()
 
-            # Save to raw_data_ununique table - NO CONFLICT check, saves everything
+            # Use sequential_id (1-300) for this execution
+            current_id = self.sequential_id
+
+            # Save to raw_data_ununique table - saves everything with manual ID
             cursor.execute("""
                 INSERT INTO raw_data_ununique
                 (mall_name, page_number, Retailer_SKU_Name, Number_of_units_purchased_past_month,
                  Final_SKU_Price, Original_SKU_Price, Shipping_Info,
                  Available_Quantity_for_Purchase, Discount_Type, Product_URL, ASIN)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
             """, (
                 data['mall_name'],
                 data['page_number'],
@@ -305,34 +308,45 @@ class AmazonTVCrawlerUnunique:
                 data['ASIN']
             ))
 
-            # Get the inserted ID
-            raw_data_result = cursor.fetchone()
-
-            # Always insert to Amazon_tv_main_crawled_ununique (since raw_data insert always succeeds)
-            if raw_data_result:
-                cursor.execute("""
-                    INSERT INTO Amazon_tv_main_crawled_ununique
-                    (mall_name, Retailer_SKU_Name, Number_of_units_purchased_past_month,
-                     Final_SKU_Price, Original_SKU_Price, Shipping_Info,
-                     Available_Quantity_for_Purchase, Discount_Type, ASIN)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, (
-                    data['mall_name'],
-                    data['Retailer_SKU_Name'],
-                    data['Number_of_units_purchased_past_month'],
-                    data['Final_SKU_Price'],
-                    data['Original_SKU_Price'],
-                    data['Shipping_Info'],
-                    data['Available_Quantity_for_Purchase'],
-                    data['Discount_Type'],
-                    data['ASIN']
-                ))
+            # Insert/Update Amazon_tv_main_crawled_ununique with sequential ID
+            # ON CONFLICT updates existing ID, so each run overwrites 1-300
+            cursor.execute("""
+                INSERT INTO Amazon_tv_main_crawled_ununique
+                (id, mall_name, Retailer_SKU_Name, Number_of_units_purchased_past_month,
+                 Final_SKU_Price, Original_SKU_Price, Shipping_Info,
+                 Available_Quantity_for_Purchase, Discount_Type, ASIN)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE SET
+                    mall_name = EXCLUDED.mall_name,
+                    Retailer_SKU_Name = EXCLUDED.Retailer_SKU_Name,
+                    Number_of_units_purchased_past_month = EXCLUDED.Number_of_units_purchased_past_month,
+                    Final_SKU_Price = EXCLUDED.Final_SKU_Price,
+                    Original_SKU_Price = EXCLUDED.Original_SKU_Price,
+                    Shipping_Info = EXCLUDED.Shipping_Info,
+                    Available_Quantity_for_Purchase = EXCLUDED.Available_Quantity_for_Purchase,
+                    Discount_Type = EXCLUDED.Discount_Type,
+                    ASIN = EXCLUDED.ASIN,
+                    collected_at_local_time = CURRENT_TIMESTAMP
+            """, (
+                current_id,
+                data['mall_name'],
+                data['Retailer_SKU_Name'],
+                data['Number_of_units_purchased_past_month'],
+                data['Final_SKU_Price'],
+                data['Original_SKU_Price'],
+                data['Shipping_Info'],
+                data['Available_Quantity_for_Purchase'],
+                data['Discount_Type'],
+                data['ASIN']
+            ))
 
             self.db_conn.commit()
             cursor.close()
 
-            # Return True if insert succeeded
-            return raw_data_result is not None
+            # Increment sequential ID for next product
+            self.sequential_id += 1
+
+            return True
 
         except Exception as e:
             print(f"[ERROR] Failed to save to DB: {e}")
