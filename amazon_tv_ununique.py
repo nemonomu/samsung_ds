@@ -295,36 +295,23 @@ class AmazonTVCrawlerUnunique:
             return True  # Continue to next page
 
     def save_to_db(self, data):
-        """Save collected data with sequential ID (1-300), reusing IDs on each run"""
+        """Save collected data with collection order (1-300), ID continues to increment"""
         try:
             cursor = self.db_conn.cursor()
 
-            # Use sequential_id (1-300) for this execution
-            current_id = self.sequential_id
+            # Use sequential_id (1-300) for collection order
+            collection_order = self.sequential_id
 
-            # Save to raw_data_ununique table with sequential ID (1-300)
-            # ON CONFLICT updates existing ID, so each run overwrites 1-300
+            # Save to raw_data_ununique table
+            # ID is SERIAL (auto-increment), order stores collection sequence
             cursor.execute("""
                 INSERT INTO raw_data_ununique
-                (id, mall_name, page_number, Retailer_SKU_Name, Number_of_units_purchased_past_month,
+                ("order", mall_name, page_number, Retailer_SKU_Name, Number_of_units_purchased_past_month,
                  Final_SKU_Price, Original_SKU_Price, Shipping_Info,
                  Available_Quantity_for_Purchase, Discount_Type, Product_URL, ASIN)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (id) DO UPDATE SET
-                    mall_name = EXCLUDED.mall_name,
-                    page_number = EXCLUDED.page_number,
-                    Retailer_SKU_Name = EXCLUDED.Retailer_SKU_Name,
-                    Number_of_units_purchased_past_month = EXCLUDED.Number_of_units_purchased_past_month,
-                    Final_SKU_Price = EXCLUDED.Final_SKU_Price,
-                    Original_SKU_Price = EXCLUDED.Original_SKU_Price,
-                    Shipping_Info = EXCLUDED.Shipping_Info,
-                    Available_Quantity_for_Purchase = EXCLUDED.Available_Quantity_for_Purchase,
-                    Discount_Type = EXCLUDED.Discount_Type,
-                    Product_URL = EXCLUDED.Product_URL,
-                    ASIN = EXCLUDED.ASIN,
-                    collected_at = CURRENT_TIMESTAMP
             """, (
-                current_id,
+                collection_order,
                 data['mall_name'],
                 data['page_number'],
                 data['Retailer_SKU_Name'],
@@ -338,27 +325,16 @@ class AmazonTVCrawlerUnunique:
                 data['ASIN']
             ))
 
-            # Insert/Update Amazon_tv_main_crawled_ununique with sequential ID
-            # ON CONFLICT updates existing ID, so each run overwrites 1-300
+            # Insert to Amazon_tv_main_crawled_ununique
+            # ID is SERIAL (auto-increment), order stores collection sequence
             cursor.execute("""
                 INSERT INTO Amazon_tv_main_crawled_ununique
-                (id, mall_name, Retailer_SKU_Name, Number_of_units_purchased_past_month,
+                ("order", mall_name, Retailer_SKU_Name, Number_of_units_purchased_past_month,
                  Final_SKU_Price, Original_SKU_Price, Shipping_Info,
                  Available_Quantity_for_Purchase, Discount_Type, ASIN)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (id) DO UPDATE SET
-                    mall_name = EXCLUDED.mall_name,
-                    Retailer_SKU_Name = EXCLUDED.Retailer_SKU_Name,
-                    Number_of_units_purchased_past_month = EXCLUDED.Number_of_units_purchased_past_month,
-                    Final_SKU_Price = EXCLUDED.Final_SKU_Price,
-                    Original_SKU_Price = EXCLUDED.Original_SKU_Price,
-                    Shipping_Info = EXCLUDED.Shipping_Info,
-                    Available_Quantity_for_Purchase = EXCLUDED.Available_Quantity_for_Purchase,
-                    Discount_Type = EXCLUDED.Discount_Type,
-                    ASIN = EXCLUDED.ASIN,
-                    collected_at_local_time = CURRENT_TIMESTAMP
             """, (
-                current_id,
+                collection_order,
                 data['mall_name'],
                 data['Retailer_SKU_Name'],
                 data['Number_of_units_purchased_past_month'],
