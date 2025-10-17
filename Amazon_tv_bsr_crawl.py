@@ -200,6 +200,27 @@ class AmazonBSRCrawler:
         except Exception as e:
             return None
 
+    def check_and_handle_throttling(self, page_number, max_retries=3):
+        """Check for throttling message and refresh if needed"""
+        for retry in range(max_retries):
+            page_source = self.driver.page_source.lower()
+
+            # Check for throttling message
+            if "request was throttled" in page_source or "please wait a moment and refresh" in page_source:
+                print(f"[WARNING] Throttling detected on page {page_number} (attempt {retry + 1}/{max_retries})")
+                print("[INFO] Waiting before refresh...")
+                time.sleep(random.uniform(15, 20))
+
+                print("[INFO] Refreshing page...")
+                self.driver.refresh()
+                time.sleep(random.uniform(8, 12))
+            else:
+                print("[OK] No throttling detected")
+                return True
+
+        print(f"[ERROR] Still throttled after {max_retries} retries")
+        return False
+
     def scrape_page(self, url, page_number):
         """Scrape a single BSR page"""
         try:
@@ -209,6 +230,13 @@ class AmazonBSRCrawler:
             # Wait longer for initial page load
             print("[INFO] Waiting for page to load...")
             time.sleep(random.uniform(8, 12))
+
+            # Check for throttling and handle it
+            if not self.check_and_handle_throttling(page_number):
+                screenshot_path = f"bsr_page_{page_number}_throttled.png"
+                self.driver.save_screenshot(screenshot_path)
+                print(f"[ERROR] Page still throttled. Screenshot saved to {screenshot_path}")
+                return False
 
             # Check if page loaded properly
             page_height = self.driver.execute_script("return document.body.scrollHeight")
@@ -372,8 +400,11 @@ class AmazonBSRCrawler:
                 if not self.scrape_page(url, page_number):
                     print(f"[WARNING] Failed to scrape page {page_number}, continuing...")
 
-                # Random delay between pages
-                time.sleep(random.uniform(2, 4))
+                # Random delay between pages (longer to avoid throttling)
+                if page_number < len(page_urls):
+                    delay = random.uniform(10, 15)
+                    print(f"[INFO] Waiting {delay:.1f} seconds before next page...")
+                    time.sleep(delay)
 
             print("\n" + "="*80)
             print(f"BSR Crawling completed! Total collected: {self.total_collected} items")
