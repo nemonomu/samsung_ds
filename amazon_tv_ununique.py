@@ -302,14 +302,29 @@ class AmazonTVCrawlerUnunique:
             # Use sequential_id (1-300) for this execution
             current_id = self.sequential_id
 
-            # Save to raw_data_ununique table - saves everything with manual ID
+            # Save to raw_data_ununique table with sequential ID (1-300)
+            # ON CONFLICT updates existing ID, so each run overwrites 1-300
             cursor.execute("""
                 INSERT INTO raw_data_ununique
-                (mall_name, page_number, Retailer_SKU_Name, Number_of_units_purchased_past_month,
+                (id, mall_name, page_number, Retailer_SKU_Name, Number_of_units_purchased_past_month,
                  Final_SKU_Price, Original_SKU_Price, Shipping_Info,
                  Available_Quantity_for_Purchase, Discount_Type, Product_URL, ASIN)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE SET
+                    mall_name = EXCLUDED.mall_name,
+                    page_number = EXCLUDED.page_number,
+                    Retailer_SKU_Name = EXCLUDED.Retailer_SKU_Name,
+                    Number_of_units_purchased_past_month = EXCLUDED.Number_of_units_purchased_past_month,
+                    Final_SKU_Price = EXCLUDED.Final_SKU_Price,
+                    Original_SKU_Price = EXCLUDED.Original_SKU_Price,
+                    Shipping_Info = EXCLUDED.Shipping_Info,
+                    Available_Quantity_for_Purchase = EXCLUDED.Available_Quantity_for_Purchase,
+                    Discount_Type = EXCLUDED.Discount_Type,
+                    Product_URL = EXCLUDED.Product_URL,
+                    ASIN = EXCLUDED.ASIN,
+                    collected_at = CURRENT_TIMESTAMP
             """, (
+                current_id,
                 data['mall_name'],
                 data['page_number'],
                 data['Retailer_SKU_Name'],
