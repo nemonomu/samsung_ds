@@ -92,24 +92,39 @@ class BFDEventCrawler:
         try:
             print(f"\n[INFO] Accessing main page: {BASE_URL}")
             self.driver.get(BASE_URL)
+
+            print("[INFO] Waiting for page to load...")
             time.sleep(random.uniform(5, 8))
 
+            print("[INFO] Checking page height...")
+            page_height = self.driver.execute_script("return document.body.scrollHeight")
+            print(f"[DEBUG] Page height: {page_height}")
+
+            print("[INFO] Parsing page source...")
             page_source = self.driver.page_source
             tree = html.fromstring(page_source)
 
             # Find all base containers
+            print("[INFO] Searching for base containers...")
             containers = tree.xpath('//div[@class="flex flex-wrap text-left justify-center"]')
             print(f"[INFO] Found {len(containers)} total containers")
 
+            if len(containers) == 0:
+                print("[WARNING] No containers found. Saving screenshot for debugging...")
+                self.driver.save_screenshot("bfd_main_page_error.png")
+                print("[DEBUG] Screenshot saved to bfd_main_page_error.png")
+
             retailer_urls = {}
 
-            for container in containers:
+            for idx, container in enumerate(containers, 1):
                 # Extract retailer name
                 retailer_name_elem = container.xpath('.//span[@class="font-bold"]')
                 if not retailer_name_elem:
+                    print(f"[DEBUG] Container {idx}: No retailer name found")
                     continue
 
                 retailer_name = retailer_name_elem[0].text_content().strip()
+                print(f"[DEBUG] Container {idx}: Found retailer '{retailer_name}'")
 
                 # Check if it's one of our target retailers
                 if retailer_name in TARGET_RETAILERS:
@@ -120,7 +135,12 @@ class BFDEventCrawler:
                         full_url = f"{BASE_URL}{relative_url}"
                         retailer_urls[retailer_name] = full_url
                         print(f"[FOUND] {retailer_name}: {full_url}")
+                    else:
+                        print(f"[WARNING] {retailer_name}: No URL found")
+                else:
+                    print(f"[SKIP] {retailer_name}: Not a target retailer")
 
+            print(f"\n[SUMMARY] Found {len(retailer_urls)} target retailers")
             return retailer_urls
 
         except Exception as e:
