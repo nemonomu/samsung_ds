@@ -250,6 +250,21 @@ class AmazonTVCrawlerUnunique:
                 # Get ASIN
                 asin = product.get('data-asin', 'NO-ASIN')
 
+                # Debug: Log products without ASIN
+                if not asin or asin == 'NO-ASIN' or asin.strip() == '':
+                    cel_widget = product.get('cel_widget_id', 'NO-CEL-WIDGET')
+                    component_type = product.get('data-component-type', 'NO-COMPONENT-TYPE')
+                    data_component_id = product.get('data-component-id', 'NO-COMPONENT-ID')
+                    data_index = product.get('data-index', 'NO-INDEX')
+
+                    print(f"  [DEBUG] Product without ASIN found:")
+                    print(f"    Name: {product_name[:60]}")
+                    print(f"    cel_widget_id: {cel_widget[:80]}")
+                    print(f"    data-component-type: {component_type}")
+                    print(f"    data-component-id: {data_component_id[:60]}")
+                    print(f"    data-index: {data_index}")
+                    print(f"    URL: {product_url[:80] if product_url else 'NULL'}")
+
                 data = {
                     'mall_name': 'Amazon',
                     'page_number': page_number,
@@ -261,7 +276,7 @@ class AmazonTVCrawlerUnunique:
                     'Available_Quantity_for_Purchase': self.extract_text_safe(product, self.xpaths['stock_availability']['xpath']),
                     'Discount_Type': discount_type,
                     'Product_URL': product_url,
-                    'ASIN': asin
+                    'ASIN': asin if asin and asin != 'NO-ASIN' else None  # Save as NULL if no ASIN
                 }
 
                 # Save to database (always succeeds, no duplicate checking)
