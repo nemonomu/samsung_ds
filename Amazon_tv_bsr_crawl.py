@@ -172,27 +172,68 @@ class AmazonBSRCrawler:
             page_source = self.driver.page_source
             tree = html.fromstring(page_source)
 
-            # Find all BSR product items
-            # You'll provide the XPath, using placeholder for now
+            # Get XPaths from database
+            base_container_xpath = self.xpaths.get('base_container', {}).get('xpath', '')
             rank_xpath = self.xpaths.get('rank', {}).get('xpath', '')
             product_name_xpath = self.xpaths.get('product_name', {}).get('xpath', '')
+            product_url_xpath = self.xpaths.get('product_url', {}).get('xpath', '')
 
-            if not rank_xpath or not product_name_xpath:
-                print("[ERROR] Required XPaths not found (rank, product_name)")
+            if not all([base_container_xpath, rank_xpath, product_name_xpath, product_url_xpath]):
+                print("[ERROR] Required XPaths not found")
                 return False
 
-            print(f"[INFO] Using Rank XPath: {rank_xpath}")
-            print(f"[INFO] Using Product Name XPath: {product_name_xpath}")
+            print(f"[DEBUG] Base Container XPath: {base_container_xpath}")
+            print(f"[DEBUG] Rank XPath: {rank_xpath}")
+            print(f"[DEBUG] Product Name XPath: {product_name_xpath}")
+            print(f"[DEBUG] Product URL XPath: {product_url_xpath}")
 
-            # Extract rank and product name pairs
-            # This will depend on the actual HTML structure
-            # For now, creating a placeholder structure
+            # Find all BSR product containers
+            containers = tree.xpath(base_container_xpath)
+            print(f"[INFO] Found {len(containers)} BSR product containers")
 
             collected_count = 0
 
-            # TODO: Implement actual extraction logic based on XPaths
-            # This is a placeholder - needs to be adjusted based on actual HTML
-            print(f"[INFO] XPath extraction logic will be implemented based on provided XPaths")
+            # Extract data from each container
+            for idx, container in enumerate(containers, 1):
+                try:
+                    # Extract rank (e.g., "#1", "#2", "#3")
+                    rank_text = self.extract_text_safe(container, rank_xpath)
+                    if rank_text:
+                        # Remove "#" and convert to integer
+                        rank = int(rank_text.replace('#', '').strip())
+                    else:
+                        print(f"  [SKIP {idx}] No rank found")
+                        continue
+
+                    # Extract product name
+                    product_name = self.extract_text_safe(container, product_name_xpath)
+                    if not product_name:
+                        print(f"  [SKIP {idx}] Rank #{rank}: No product name found")
+                        continue
+
+                    # Extract product URL
+                    product_url_path = self.extract_text_safe(container, product_url_xpath)
+                    if product_url_path:
+                        # Build complete URL
+                        if product_url_path.startswith('http'):
+                            product_url = product_url_path
+                        else:
+                            product_url = f"https://www.amazon.com{product_url_path}"
+                    else:
+                        product_url = None
+                        print(f"  [WARNING] Rank #{rank}: No URL found")
+
+                    # Save to database
+                    if self.save_to_db(rank, product_name, product_url):
+                        collected_count += 1
+                        self.total_collected += 1
+                        print(f"  [{idx}/{len(containers)}] Rank #{rank}: {product_name[:60]}...")
+                    else:
+                        print(f"  [FAILED {idx}] Rank #{rank}: Database save failed")
+
+                except Exception as e:
+                    print(f"  [ERROR {idx}] Failed to extract data: {e}")
+                    continue
 
             print(f"[PAGE {page_number}] Collected {collected_count} products (Total: {self.total_collected})")
             return True
@@ -203,16 +244,16 @@ class AmazonBSRCrawler:
             traceback.print_exc()
             return False
 
-    def save_to_db(self, rank, product_name):
+    def save_to_db(self, rank, product_name, product_url=None):
         """Save BSR data to database"""
         try:
             cursor = self.db_conn.cursor()
 
             cursor.execute("""
                 INSERT INTO amazon_tv_bsr
-                (Rank, Retailer_SKU_Name)
-                VALUES (%s, %s)
-            """, (rank, product_name))
+                (Rank, Retailer_SKU_Name, product_url)
+                VALUES (%s, %s, %s)
+            """, (rank, product_name, product_url))
 
             self.db_conn.commit()
             cursor.close()
