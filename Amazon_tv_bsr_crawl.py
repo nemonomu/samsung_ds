@@ -92,19 +92,46 @@ class AmazonBSRCrawler:
         """Setup Chrome WebDriver"""
         chrome_options = Options()
         chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-        chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+        chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36')
+        chrome_options.add_argument('--disable-dev-shm-usage')
+        chrome_options.add_argument('--no-sandbox')
+        chrome_options.add_argument('--window-size=1920,1080')
+        chrome_options.add_argument('--start-maximized')
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
         chrome_options.add_experimental_option('useAutomationExtension', False)
 
+        # Add more realistic browser settings
+        chrome_options.add_argument('--disable-gpu')
+        chrome_options.add_argument('--lang=en-US,en;q=0.9')
+        chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+
+        # Add preferences to appear more like a real browser
+        prefs = {
+            "profile.default_content_setting_values.notifications": 2,
+            "credentials_enable_service": False,
+            "profile.password_manager_enabled": False
+        }
+        chrome_options.add_experimental_option("prefs", prefs)
+
         service = Service(ChromeDriverManager().install())
         self.driver = webdriver.Chrome(service=service, options=chrome_options)
-        self.wait = WebDriverWait(self.driver, 10)
+        self.wait = WebDriverWait(self.driver, 20)
 
+        # More comprehensive webdriver property masking
         self.driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
             'source': '''
                 Object.defineProperty(navigator, 'webdriver', {
                     get: () => undefined
-                })
+                });
+                Object.defineProperty(navigator, 'plugins', {
+                    get: () => [1, 2, 3, 4, 5]
+                });
+                Object.defineProperty(navigator, 'languages', {
+                    get: () => ['en-US', 'en']
+                });
+                window.chrome = {
+                    runtime: {}
+                };
             '''
         })
 
@@ -178,7 +205,42 @@ class AmazonBSRCrawler:
         try:
             print(f"\n[PAGE {page_number}] Accessing: {url[:80]}...")
             self.driver.get(url)
-            time.sleep(random.uniform(3, 5))
+
+            # Wait longer for initial page load
+            print("[INFO] Waiting for page to load...")
+            time.sleep(random.uniform(8, 12))
+
+            # Check if page loaded properly
+            page_height = self.driver.execute_script("return document.body.scrollHeight")
+            print(f"[DEBUG] Initial page height: {page_height}")
+
+            if page_height < 1000:
+                print("[WARNING] Page may not have loaded properly, waiting longer...")
+                time.sleep(15)
+                page_height = self.driver.execute_script("return document.body.scrollHeight")
+                print(f"[DEBUG] Page height after wait: {page_height}")
+
+                # If still failed, save screenshot for debugging
+                if page_height < 1000:
+                    screenshot_path = f"bsr_page_{page_number}_error.png"
+                    self.driver.save_screenshot(screenshot_path)
+                    print(f"[ERROR] Page failed to load. Screenshot saved to {screenshot_path}")
+                    print(f"[DEBUG] Current URL: {self.driver.current_url}")
+                    print("[DEBUG] Checking page title...")
+                    print(f"[DEBUG] Page title: {self.driver.title}")
+                    return False
+
+            # Wait for BSR containers to be present using explicit wait
+            print("[INFO] Waiting for BSR containers to load...")
+            try:
+                self.wait.until(EC.presence_of_element_located((By.CLASS_NAME, "zg-no-numbers")))
+                print("[OK] BSR containers detected")
+            except Exception as e:
+                print(f"[ERROR] BSR containers not found: {e}")
+                screenshot_path = f"bsr_page_{page_number}_no_containers.png"
+                self.driver.save_screenshot(screenshot_path)
+                print(f"[ERROR] Screenshot saved to {screenshot_path}")
+                return False
 
             # Scroll to load all items (up to 50)
             self.scroll_to_load_all()
