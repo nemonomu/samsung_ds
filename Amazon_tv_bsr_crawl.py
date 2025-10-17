@@ -200,7 +200,7 @@ class AmazonBSRCrawler:
         except Exception as e:
             return None
 
-    def check_and_handle_throttling(self, page_number, max_retries=3):
+    def check_and_handle_throttling(self, page_number, url, max_retries=2):
         """Check for throttling message and refresh if needed"""
         for retry in range(max_retries):
             page_source = self.driver.page_source.lower()
@@ -218,8 +218,26 @@ class AmazonBSRCrawler:
                 print("[OK] No throttling detected")
                 return True
 
-        print(f"[ERROR] Still throttled after {max_retries} retries")
-        return False
+        # After max_retries refreshes, if still throttled, try accessing URL directly
+        page_source = self.driver.page_source.lower()
+        if "request was throttled" in page_source or "please wait a moment and refresh" in page_source:
+            print(f"[WARNING] Still throttled after {max_retries} refreshes. Trying direct URL access...")
+            time.sleep(random.uniform(20, 25))
+
+            print(f"[INFO] Accessing URL directly: {url[:80]}...")
+            self.driver.get(url)
+            time.sleep(random.uniform(10, 15))
+
+            # Check one more time
+            page_source = self.driver.page_source.lower()
+            if "request was throttled" in page_source or "please wait a moment and refresh" in page_source:
+                print(f"[ERROR] Still throttled after direct URL access")
+                return False
+            else:
+                print("[OK] Direct URL access successful")
+                return True
+
+        return True
 
     def scrape_page(self, url, page_number):
         """Scrape a single BSR page"""
@@ -232,7 +250,7 @@ class AmazonBSRCrawler:
             time.sleep(random.uniform(8, 12))
 
             # Check for throttling and handle it
-            if not self.check_and_handle_throttling(page_number):
+            if not self.check_and_handle_throttling(page_number, url):
                 screenshot_path = f"bsr_page_{page_number}_throttled.png"
                 self.driver.save_screenshot(screenshot_path)
                 print(f"[ERROR] Page still throttled. Screenshot saved to {screenshot_path}")
