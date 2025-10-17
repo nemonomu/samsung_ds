@@ -66,6 +66,10 @@ class BFDEventCrawler:
 
         service = Service(ChromeDriverManager().install())
         self.driver = webdriver.Chrome(service=service, options=chrome_options)
+
+        # Set page load timeout to prevent hanging
+        self.driver.set_page_load_timeout(30)
+
         self.wait = WebDriverWait(self.driver, 20)
 
         self.driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
@@ -91,10 +95,16 @@ class BFDEventCrawler:
         """Get retailer containers from main page"""
         try:
             print(f"\n[INFO] Accessing main page: {BASE_URL}")
-            self.driver.get(BASE_URL)
+            try:
+                self.driver.get(BASE_URL)
+                print("[OK] Page accessed")
+            except Exception as e:
+                print(f"[ERROR] Failed to load page: {e}")
+                print("[INFO] Trying to continue anyway...")
 
             print("[INFO] Waiting for page to load...")
-            time.sleep(random.uniform(5, 8))
+            time.sleep(3)
+            print("[OK] Wait completed")
 
             print("[INFO] Checking page height...")
             page_height = self.driver.execute_script("return document.body.scrollHeight")
