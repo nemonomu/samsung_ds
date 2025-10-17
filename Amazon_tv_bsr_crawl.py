@@ -115,26 +115,41 @@ class AmazonBSRCrawler:
         try:
             print("[INFO] Scrolling to load all items...")
 
+            # Scroll down multiple times to ensure all 50 items are loaded
+            scroll_pause_time = 2
+
             # Get initial height
             last_height = self.driver.execute_script("return document.body.scrollHeight")
 
-            # Scroll down in steps
-            for i in range(3):  # Try scrolling 3 times
-                # Scroll to bottom
+            # Scroll down progressively in multiple steps
+            for i in range(5):  # Increase scroll attempts
+                # Scroll down by percentage
+                scroll_position = (i + 1) * 20  # 20%, 40%, 60%, 80%, 100%
+                self.driver.execute_script(f"window.scrollTo(0, document.body.scrollHeight * {scroll_position / 100});")
+                print(f"[DEBUG] Scrolled to {scroll_position}%")
+                time.sleep(scroll_pause_time)
+
+            # Scroll to absolute bottom
+            for i in range(3):
                 self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-                time.sleep(2)  # Wait for content to load
+                time.sleep(scroll_pause_time)
 
                 # Calculate new height
                 new_height = self.driver.execute_script("return document.body.scrollHeight")
+                print(f"[DEBUG] Page height: {new_height}")
 
                 if new_height == last_height:
-                    break  # No more content to load
+                    print(f"[DEBUG] No more content to load (attempt {i+1}/3)")
+                    break
 
                 last_height = new_height
 
-            # Scroll back to top
+            # Scroll back to top to ensure all elements are in DOM
             self.driver.execute_script("window.scrollTo(0, 0);")
             time.sleep(1)
+
+            # Wait for any lazy-loaded content
+            time.sleep(2)
 
             print("[OK] Scrolling completed")
             return True
