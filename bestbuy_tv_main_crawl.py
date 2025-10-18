@@ -131,37 +131,36 @@ class BestBuyTVCrawler:
             except Exception as e:
                 print(f"[WARNING] Product list not found: {e}")
 
-            # Scroll down to load all products (lazy loading)
-            print("[INFO] Scrolling to load all products...")
-            for i in range(3):
-                self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-                time.sleep(2)
-                print(f"[DEBUG] Scroll {i+1}/3 completed")
+            # Slow scroll down to trigger lazy loading of all products
+            print("[INFO] Performing slow scroll to load all products...")
+            scroll_pause_time = 2
+            screen_height = self.driver.execute_script("return window.innerHeight")
 
-            # Scroll back to top
+            # Get total scrollable height
+            scroll_height = self.driver.execute_script("return document.body.scrollHeight")
+
+            # Scroll down in steps
+            current_position = 0
+            while current_position < scroll_height:
+                # Scroll one screen height at a time
+                current_position += screen_height
+                self.driver.execute_script(f"window.scrollTo(0, {current_position});")
+                print(f"[DEBUG] Scrolled to position {current_position}/{scroll_height}")
+                time.sleep(scroll_pause_time)
+
+                # Update scroll height as new content may load
+                new_scroll_height = self.driver.execute_script("return document.body.scrollHeight")
+                if new_scroll_height > scroll_height:
+                    scroll_height = new_scroll_height
+                    print(f"[DEBUG] Page height increased to {scroll_height}")
+
+            # Scroll back to top slowly
+            print("[INFO] Scrolling back to top...")
             self.driver.execute_script("window.scrollTo(0, 0);")
-            time.sleep(1)
+            time.sleep(3)
 
-            # Wait for skeleton loaders to disappear and real content to load
-            print("[INFO] Waiting for content to fully load...")
-            time.sleep(5)
-
-            # Wait until skeleton shimmer disappears
-            for attempt in range(15):
-                page_source_check = self.driver.page_source
-                skeleton_count = page_source_check.count('a-skeleton-shimmer')
-                if skeleton_count == 0:
-                    print("[OK] Skeleton loaders gone, content loaded")
-                    break
-                print(f"[DEBUG] Waiting for skeleton to disappear (attempt {attempt+1}/15, {skeleton_count} skeletons found)...")
-
-                # Scroll to trigger loading of skeleton items
-                self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-                time.sleep(1)
-                self.driver.execute_script("window.scrollTo(0, 0);")
-                time.sleep(2)
-
-            # Additional wait for dynamic content
+            # Wait for all content to settle
+            print("[INFO] Waiting for content to fully render...")
             time.sleep(5)
 
             # Get page source and parse with lxml
