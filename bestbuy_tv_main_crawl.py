@@ -154,7 +154,12 @@ class BestBuyTVCrawler:
                     print("[OK] Skeleton loaders gone, content loaded")
                     break
                 print(f"[DEBUG] Waiting for skeleton to disappear (attempt {attempt+1}/15, {skeleton_count} skeletons found)...")
-                time.sleep(3)
+
+                # Scroll to trigger loading of skeleton items
+                self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                time.sleep(1)
+                self.driver.execute_script("window.scrollTo(0, 0);")
+                time.sleep(2)
 
             # Additional wait for dynamic content
             time.sleep(5)
