@@ -133,7 +133,7 @@ class BestBuyTVCrawler:
 
             # Slow scroll down to trigger lazy loading of all products
             print("[INFO] Performing slow scroll to load all products...")
-            scroll_pause_time = 2
+            scroll_pause_time = 3  # Increased from 2 to 3
             screen_height = self.driver.execute_script("return window.innerHeight")
 
             # Get total scrollable height
@@ -141,7 +141,10 @@ class BestBuyTVCrawler:
 
             # Scroll down in steps
             current_position = 0
-            while current_position < scroll_height:
+            scroll_attempts = 0
+            max_scroll_attempts = 20  # Prevent infinite loop
+
+            while current_position < scroll_height and scroll_attempts < max_scroll_attempts:
                 # Scroll one screen height at a time
                 current_position += screen_height
                 self.driver.execute_script(f"window.scrollTo(0, {current_position});")
@@ -154,14 +157,16 @@ class BestBuyTVCrawler:
                     scroll_height = new_scroll_height
                     print(f"[DEBUG] Page height increased to {scroll_height}")
 
+                scroll_attempts += 1
+
             # Scroll back to top slowly
             print("[INFO] Scrolling back to top...")
             self.driver.execute_script("window.scrollTo(0, 0);")
-            time.sleep(3)
+            time.sleep(5)  # Increased from 3 to 5
 
             # Wait for all content to settle
             print("[INFO] Waiting for content to fully render...")
-            time.sleep(5)
+            time.sleep(8)  # Increased from 5 to 8
 
             # Get page source and parse with lxml
             page_source = self.driver.page_source
