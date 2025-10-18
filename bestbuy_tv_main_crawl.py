@@ -147,16 +147,17 @@ class BestBuyTVCrawler:
             time.sleep(5)
 
             # Wait until skeleton shimmer disappears
-            for attempt in range(10):
+            for attempt in range(15):
                 page_source_check = self.driver.page_source
-                if 'a-skeleton-shimmer' not in page_source_check:
+                skeleton_count = page_source_check.count('a-skeleton-shimmer')
+                if skeleton_count == 0:
                     print("[OK] Skeleton loaders gone, content loaded")
                     break
-                print(f"[DEBUG] Waiting for skeleton to disappear (attempt {attempt+1}/10)...")
-                time.sleep(2)
+                print(f"[DEBUG] Waiting for skeleton to disappear (attempt {attempt+1}/15, {skeleton_count} skeletons found)...")
+                time.sleep(3)
 
             # Additional wait for dynamic content
-            time.sleep(3)
+            time.sleep(5)
 
             # Get page source and parse with lxml
             page_source = self.driver.page_source
@@ -202,7 +203,12 @@ class BestBuyTVCrawler:
                     product_url = f"https://www.bestbuy.com{product_url_elem[0]}" if product_url_elem else None
 
                     # Extract Final_SKU_Price
-                    price_elem = container.xpath('.//span[@data-testid="price-block-customer-price"]//span')
+                    # Try multiple possible price locations
+                    price_elem = container.xpath('.//span[contains(@class, "text-6") and contains(@class, "leading-6")]')
+                    if not price_elem:
+                        price_elem = container.xpath('.//span[@data-testid="price-block-customer-price"]//span')
+                    if not price_elem:
+                        price_elem = container.xpath('.//div[@class="pricing"]//span[contains(@class, "font-500")]')
                     final_price = price_elem[0].text_content().strip() if price_elem else None
 
                     # Extract Savings
