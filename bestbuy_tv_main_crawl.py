@@ -220,8 +220,16 @@ class BestBuyTVCrawler:
                     savings = savings_elem[0].text_content().strip() if savings_elem else None
 
                     # Extract Comparable_Pricing
-                    comp_price_elem = container.xpath('.//span[@data-testid="price-block-regular-price-message-text"]//span')
-                    comp_pricing = comp_price_elem[1].text_content().strip() if len(comp_price_elem) > 1 else None
+                    # Try the new XPath pattern first
+                    comp_price_elem = container.xpath('.//span[@class="font-sans text-default text-style-body-md-400" and contains(@style, "color: rgb(108, 111, 117)")]')
+                    if not comp_price_elem:
+                        comp_price_elem = container.xpath('.//span[@data-testid="price-block-regular-price-message-text"]//span')
+
+                    if comp_price_elem:
+                        # For the new pattern, it's the first element
+                        comp_pricing = comp_price_elem[0].text_content().strip() if len(comp_price_elem) >= 1 else None
+                    else:
+                        comp_pricing = None
 
                     # Extract Offer (+ X offers)
                     offer_elem = container.xpath('.//div[@data-testid="plus-x-offers"]//span[@class="font-sans text-default text-style-body-md-400"]')
@@ -235,9 +243,18 @@ class BestBuyTVCrawler:
                     shipping_elem = container.xpath('.//div[@class="fulfillment"]//p[contains(., "Get it") or contains(., "FREE")]')
                     shipping = shipping_elem[0].text_content().strip() if shipping_elem else None
 
-                    # Extract Delivery Availability
-                    delivery_elem = container.xpath('.//div[@class="fulfillment"]//p[contains(., "Delivery") or contains(., "Installation")]')
-                    delivery = delivery_elem[0].text_content().strip() if delivery_elem else None
+                    # Extract Delivery Availability (Delivery only, ignore Installation)
+                    delivery_elem = container.xpath('.//div[@class="fulfillment"]//p[contains(., "Delivery")]')
+                    if delivery_elem:
+                        # Only take "Delivery" text, not "Installation"
+                        delivery_text = delivery_elem[0].text_content().strip()
+                        # Filter out if it's only about Installation
+                        if "Delivery" in delivery_text:
+                            delivery = delivery_text
+                        else:
+                            delivery = None
+                    else:
+                        delivery = None
 
                     # Extract Star_Rating
                     rating_elem = container.xpath('.//span[@aria-hidden="true" and contains(@class, "font-weight-bold")]')
