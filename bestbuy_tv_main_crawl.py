@@ -196,12 +196,12 @@ class BestBuyTVCrawler:
                     product_name = product_name_elem[0].text_content().strip() if product_name_elem else None
 
                     if not product_name:
-                        # Save container HTML for debugging
-                        if idx <= 3 and page_number == 1:
+                        # Save container HTML for debugging (first 5 skipped items on any page)
+                        if page_number <= 3:  # Only for first 3 pages
                             container_html = html.tostring(container, encoding='unicode', pretty_print=True)
-                            with open(f'bestbuy_container_{idx}_debug.html', 'w', encoding='utf-8') as f:
+                            with open(f'bestbuy_page{page_number}_container_{idx}_debug.html', 'w', encoding='utf-8') as f:
                                 f.write(container_html)
-                            print(f"  [DEBUG] Saved container {idx} to bestbuy_container_{idx}_debug.html")
+                            print(f"  [DEBUG] Saved container {idx} to bestbuy_page{page_number}_container_{idx}_debug.html")
                         print(f"  [SKIP {idx}] No product name found")
                         continue
 
