@@ -131,42 +131,40 @@ class BestBuyTVCrawler:
             except Exception as e:
                 print(f"[WARNING] Product list not found: {e}")
 
-            # Slow scroll down to trigger lazy loading of all products
-            print("[INFO] Performing slow scroll to load all products...")
-            scroll_pause_time = 3  # Increased from 2 to 3
-            screen_height = self.driver.execute_script("return window.innerHeight")
+            # Aggressive scroll to trigger lazy loading of all products
+            print("[INFO] Performing aggressive scroll to load all products...")
 
-            # Get total scrollable height
-            scroll_height = self.driver.execute_script("return document.body.scrollHeight")
+            # First pass - scroll down to bottom multiple times
+            for scroll_round in range(3):
+                print(f"[DEBUG] Scroll round {scroll_round + 1}/3")
+                scroll_height = self.driver.execute_script("return document.body.scrollHeight")
+                screen_height = self.driver.execute_script("return window.innerHeight")
 
-            # Scroll down in steps
-            current_position = 0
-            scroll_attempts = 0
-            max_scroll_attempts = 20  # Prevent infinite loop
+                current_position = 0
+                while current_position < scroll_height:
+                    current_position += screen_height
+                    self.driver.execute_script(f"window.scrollTo(0, {current_position});")
+                    time.sleep(2)
 
-            while current_position < scroll_height and scroll_attempts < max_scroll_attempts:
-                # Scroll one screen height at a time
-                current_position += screen_height
-                self.driver.execute_script(f"window.scrollTo(0, {current_position});")
-                print(f"[DEBUG] Scrolled to position {current_position}/{scroll_height}")
-                time.sleep(scroll_pause_time)
+                    # Check if new content loaded
+                    new_scroll_height = self.driver.execute_script("return document.body.scrollHeight")
+                    if new_scroll_height > scroll_height:
+                        scroll_height = new_scroll_height
+                        print(f"[DEBUG] Page height increased to {scroll_height}")
 
-                # Update scroll height as new content may load
-                new_scroll_height = self.driver.execute_script("return document.body.scrollHeight")
-                if new_scroll_height > scroll_height:
-                    scroll_height = new_scroll_height
-                    print(f"[DEBUG] Page height increased to {scroll_height}")
-
-                scroll_attempts += 1
+                # Scroll to absolute bottom
+                self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                time.sleep(3)
+                print(f"[DEBUG] Completed scroll round {scroll_round + 1}, final height: {scroll_height}")
 
             # Scroll back to top slowly
             print("[INFO] Scrolling back to top...")
             self.driver.execute_script("window.scrollTo(0, 0);")
-            time.sleep(5)  # Increased from 3 to 5
+            time.sleep(5)
 
             # Wait for all content to settle
             print("[INFO] Waiting for content to fully render...")
-            time.sleep(8)  # Increased from 5 to 8
+            time.sleep(8)
 
             # Get page source and parse with lxml
             page_source = self.driver.page_source
