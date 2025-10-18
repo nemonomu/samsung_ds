@@ -131,8 +131,32 @@ class BestBuyTVCrawler:
             except Exception as e:
                 print(f"[WARNING] Product list not found: {e}")
 
+            # Scroll down to load all products (lazy loading)
+            print("[INFO] Scrolling to load all products...")
+            for i in range(3):
+                self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                time.sleep(2)
+                print(f"[DEBUG] Scroll {i+1}/3 completed")
+
+            # Scroll back to top
+            self.driver.execute_script("window.scrollTo(0, 0);")
+            time.sleep(1)
+
+            # Wait for skeleton loaders to disappear and real content to load
+            print("[INFO] Waiting for content to fully load...")
+            time.sleep(5)
+
+            # Wait until skeleton shimmer disappears
+            for attempt in range(10):
+                page_source_check = self.driver.page_source
+                if 'a-skeleton-shimmer' not in page_source_check:
+                    print("[OK] Skeleton loaders gone, content loaded")
+                    break
+                print(f"[DEBUG] Waiting for skeleton to disappear (attempt {attempt+1}/10)...")
+                time.sleep(2)
+
             # Additional wait for dynamic content
-            time.sleep(random.uniform(3, 5))
+            time.sleep(3)
 
             # Get page source and parse with lxml
             page_source = self.driver.page_source
