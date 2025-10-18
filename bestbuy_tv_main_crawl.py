@@ -145,13 +145,31 @@ class BestBuyTVCrawler:
 
             collected_count = 0
 
+            # Save HTML for debugging if first page
+            if page_number == 1:
+                with open(f'bestbuy_page_{page_number}_debug.html', 'w', encoding='utf-8') as f:
+                    f.write(page_source)
+                print(f"[DEBUG] Saved page source to bestbuy_page_{page_number}_debug.html")
+
             for idx, container in enumerate(containers, 1):
                 try:
                     # Extract product name (Retailer_SKU_Name)
+                    # Try multiple possible XPaths
                     product_name_elem = container.xpath('.//h2[contains(@class, "product-title")]')
+                    if not product_name_elem:
+                        product_name_elem = container.xpath('.//a[@class="product-list-item-link"]//h2')
+                    if not product_name_elem:
+                        product_name_elem = container.xpath('.//div[@class="sku-block-content-title"]//h2')
+
                     product_name = product_name_elem[0].text_content().strip() if product_name_elem else None
 
                     if not product_name:
+                        # Save container HTML for debugging
+                        if idx <= 3 and page_number == 1:
+                            container_html = html.tostring(container, encoding='unicode', pretty_print=True)
+                            with open(f'bestbuy_container_{idx}_debug.html', 'w', encoding='utf-8') as f:
+                                f.write(container_html)
+                            print(f"  [DEBUG] Saved container {idx} to bestbuy_container_{idx}_debug.html")
                         print(f"  [SKIP {idx}] No product name found")
                         continue
 
